@@ -13,6 +13,7 @@ old/*
 venv/*
 .mypy_cache/*
 __pycache__/*
+*.pyc
 snakemake-config.yaml
 *.swp
 
@@ -21,3 +22,7 @@ snakemake-config.yaml
 
 # macOS finder folder-level attributes
 **/.DS_store
+
+# don't commit large node files
+entity.gz
+*.jsonl
