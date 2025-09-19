@@ -31,9 +31,10 @@ python convert/semmeddb_primekg_merge_to_kg_jsonl.py entity.gz primekg_nodes.csv
 
 ### SemMedDB Entity File (entity.gz)
 - **Format**: Compressed CSV with entity information
-- **Columns**: entity_id, cui, name, semantic_type, definition, aliases, source, frequency, score, rank
+- **Columns**: entity_id, cui, numeric_id, semantic_type, name, aliases, source, frequency, score, rank
 - **CURIE Mapping**: Uses UMLS CUI when available, falls back to SemMedDB entity_id
 - **Categories**: Mapped from semantic types to Biolink categories
+- **Name Field**: Uses the actual entity name (position 4) instead of numeric ID (position 2)
 
 ### PrimeKG Nodes File (primekg_nodes.csv)
 - **Format**: CSV with node information
@@ -54,14 +55,14 @@ The merged output follows RTX-KG2 JSONL format with nodes containing:
 
 ### SemMedDB-specific Fields
 - `description`: Entity definition
-- `semantic_type`: UMLS semantic type
+- `semmeddb_semantic_type`: UMLS semantic type (CUI codes like "C0162783")
 - `synonym`: List of aliases
 - `frequency`: Entity frequency score
 - `score`: Entity confidence score
 
 ### PrimeKG-specific Fields
-- `node_type`: Original PrimeKG node type
-- `node_source`: Original data source
+- `primekg_node_type`: Original PrimeKG node type (e.g., "gene/protein", "drug")
+- `primekg_node_source`: Original data source (e.g., "NCBI", "DrugBank")
 
 ## Integration with RTX-KG2 Build System
 
@@ -97,3 +98,8 @@ The test version processes only 100 records from each source, making it suitable
 - Semantic type and node type mappings can be customized in the mapping functions
 - The production version uses kg2_util for proper RTX-KG2 integration
 - Source nodes are automatically created for both SemMedDB and PrimeKG
+- **Field Conflict Resolution**: To avoid conflicts between different data types in the same field:
+  - SemMedDB semantic types are stored in `semmeddb_semantic_type` field
+  - PrimeKG node types are stored in `primekg_node_type` field  
+  - PrimeKG node sources are stored in `primekg_node_source` field
+- **Name Field Fix**: SemMedDB entities now use human-readable names (e.g., "Prefrontal Cortex") instead of numeric IDs (e.g., "2784046")

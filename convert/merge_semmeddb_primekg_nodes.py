@@ -60,7 +60,7 @@ def make_arg_parser():
 def parse_semmeddb_entity_line(line: str) -> Optional[Dict]:
     """
     Parse a line from SemMedDB entity file
-    Expected format: "entity_id","cui","name","semantic_type","definition","aliases","source","frequency","score","rank"
+    Expected format: "entity_id","cui","numeric_id","semantic_type","name","aliases","source","frequency","score","rank"
     """
     try:
         # Remove quotes and split by comma
@@ -72,9 +72,9 @@ def parse_semmeddb_entity_line(line: str) -> Optional[Dict]:
             
         entity_id = parts[0].strip('"')
         cui = parts[1].strip('"')
-        name = parts[2].strip('"')
+        numeric_id = parts[2].strip('"')  # This is actually a numeric ID, not the name
         semantic_type = parts[3].strip('"')
-        definition = parts[4].strip('"')
+        name = parts[4].strip('"')  # The actual entity name is in position 4
         aliases = parts[5].strip('"')
         source = parts[6].strip('"')
         frequency = parts[7].strip('"')
@@ -84,9 +84,9 @@ def parse_semmeddb_entity_line(line: str) -> Optional[Dict]:
         return {
             'entity_id': entity_id,
             'cui': cui,
+            'numeric_id': numeric_id,
             'name': name,
             'semantic_type': semantic_type,
-            'definition': definition,
             'aliases': aliases,
             'source': source,
             'frequency': frequency,
@@ -142,17 +142,17 @@ def create_semmeddb_node(entity_data: Dict, update_date: str) -> Dict:
     )
     
     # Add additional properties
-    if entity_data['definition'] and entity_data['definition'] != '':
-        node['description'] = entity_data['definition']
-    
+    # Note: The 'name' field now contains the actual entity name
     if entity_data['aliases'] and entity_data['aliases'] != '':
         aliases = [alias.strip() for alias in entity_data['aliases'].split('|') if alias.strip()]
         if aliases:
             node['synonym'] = aliases
+            # Use the first alias as description if available
+            node['description'] = aliases[0]
     
-    # Add semantic type as a property
+    # Add semantic type as a property (SemMedDB specific)
     if entity_data['semantic_type'] and entity_data['semantic_type'] != '':
-        node['semantic_type'] = entity_data['semantic_type']
+        node['semmeddb_semantic_type'] = entity_data['semantic_type']
     
     # Add frequency and score if available
     if entity_data['frequency'] and entity_data['frequency'] != '':
@@ -187,9 +187,9 @@ def create_primekg_node(node_data: Dict, update_date: str) -> Dict:
         provided_by=PRIMEKG_CURIE_PREFIX + ':'
     )
     
-    # Add node type as a property
-    node['node_type'] = node_data['node_type']
-    node['node_source'] = node_data['node_source']
+    # Add node type and source as properties (PrimeKG specific)
+    node['primekg_node_type'] = node_data['node_type']
+    node['primekg_node_source'] = node_data['node_source']
     
     return node
 
@@ -201,7 +201,7 @@ def map_semantic_type_to_biolink_category(semantic_type: str) -> str:
     # Common semantic type mappings
     semantic_type_mappings = {
         'aapp': kg2_util.BIOLINK_CATEGORY_ANATOMICAL_ENTITY,  # Amino Acid, Peptide, or Protein
-        'bact': kg2_util.BIOLINK_CATEGORY_ORGANISM,  # Bacterium
+        'bact': kg2_util.BIOLINK_CATEGORY_ORGANISM_TAXON,  # Bacterium
         'bpoc': kg2_util.BIOLINK_CATEGORY_ANATOMICAL_ENTITY,  # Body Part, Organ, or Organ Component
         'chem': kg2_util.BIOLINK_CATEGORY_CHEMICAL_ENTITY,  # Chemical
         'diap': kg2_util.BIOLINK_CATEGORY_DISEASE,  # Diagnostic Procedure
@@ -210,14 +210,14 @@ def map_semantic_type_to_biolink_category(semantic_type: str) -> str:
         'ftcn': kg2_util.BIOLINK_CATEGORY_NAMED_THING,  # Functional Concept
         'gngm': kg2_util.BIOLINK_CATEGORY_GENE,  # Gene or Genome
         'imft': kg2_util.BIOLINK_CATEGORY_DRUG,  # Immunologic Factor
-        'lbpr': kg2_util.BIOLINK_CATEGORY_LABORATORY_PROCEDURE,  # Laboratory Procedure
+        'lbpr': kg2_util.BIOLINK_CATEGORY_NAMED_THING,  # Laboratory Procedure (no specific category)
         'mobd': kg2_util.BIOLINK_CATEGORY_DISEASE,  # Mental or Behavioral Dysfunction
         'neop': kg2_util.BIOLINK_CATEGORY_DISEASE,  # Neoplastic Process
-        'npop': kg2_util.BIOLINK_CATEGORY_DRUG,  # Natural Phenomenon or Process
-        'orga': kg2_util.BIOLINK_CATEGORY_ORGANISM,  # Organism
+        'npop': kg2_util.BIOLINK_CATEGORY_NAMED_THING,  # Natural Phenomenon or Process
+        'orga': kg2_util.BIOLINK_CATEGORY_ORGANISM_TAXON,  # Organism
         'phsu': kg2_util.BIOLINK_CATEGORY_DRUG,  # Pharmacologic Substance
         'sosy': kg2_util.BIOLINK_CATEGORY_DISEASE,  # Sign or Symptom
-        'virs': kg2_util.BIOLINK_CATEGORY_ORGANISM,  # Virus
+        'virs': kg2_util.BIOLINK_CATEGORY_ORGANISM_TAXON,  # Virus
     }
     
     return semantic_type_mappings.get(semantic_type.lower(), kg2_util.BIOLINK_CATEGORY_NAMED_THING)
@@ -272,7 +272,7 @@ def process_semmeddb_entities(semmeddb_file: str, nodes_output, test_mode: bool)
             # Create and write node
             update_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             node = create_semmeddb_node(entity_data, update_date)
-            nodes_output.write(node)
+            nodes_output.write(json.dumps(node) + '\n')
             
             entity_count += 1
             if entity_count % 10 == 0:
@@ -312,7 +312,7 @@ def process_primekg_nodes(primekg_file: str, nodes_output, test_mode: bool) -> S
             # Create and write node
             update_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             node = create_primekg_node(node_data, update_date)
-            nodes_output.write(node)
+            nodes_output.write(json.dumps(node) + '\n')
             
             node_count += 1
             if node_count % 10 == 0:
@@ -334,7 +334,7 @@ def create_source_nodes(nodes_output):
         update_date=update_date,
         provided_by=SEMMEDDB_CURIE_PREFIX + ':'
     )
-    nodes_output.write(semmeddb_source_node)
+    nodes_output.write(json.dumps(semmeddb_source_node) + '\n')
     
     # PrimeKG source node
     primekg_source_node = kg2_util.make_node(
@@ -345,7 +345,7 @@ def create_source_nodes(nodes_output):
         update_date=update_date,
         provided_by=PRIMEKG_CURIE_PREFIX + ':'
     )
-    nodes_output.write(primekg_source_node)
+    nodes_output.write(json.dumps(primekg_source_node) + '\n')
 
 def main():
     """Main function"""
