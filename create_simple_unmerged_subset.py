@@ -69,10 +69,11 @@ class SimpleUnmergedCreator:
         """Sample and save PrimeKG data"""
         logger.info("Processing PrimeKG...")
         
-        # Nodes
+        # First, sample nodes and collect their indices
         nodes_file = self.data_dir / "PrimeKG_data" / "primekg_nodes.csv"
         output_nodes = self.output_dir / "primekg_nodes.csv"
         
+        sampled_node_indices = set()
         with open(nodes_file, 'r') as infile, open(output_nodes, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -81,16 +82,20 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
+            # Write sample and collect node indices
             for i, row in enumerate(reader):
                 if i >= self.node_sample_size:
                     break
                 writer.writerow(row + ['PrimeKG'])
+                # PrimeKG format: node_index,node_id,node_type,node_name,node_source
+                if len(row) >= 1:
+                    sampled_node_indices.add(row[0])  # node_index
         
-        # Edges
+        # Now sample edges that only reference the sampled nodes
         edges_file = self.data_dir / "PrimeKG_data" / "primekg_edges.csv"
         output_edges = self.output_dir / "primekg_edges.csv"
         
+        edge_count = 0
         with open(edges_file, 'r') as infile, open(output_edges, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -99,22 +104,30 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
-            for i, row in enumerate(reader):
-                if i >= self.edge_sample_size:
+            # Write edges that reference sampled nodes
+            for row in reader:
+                if edge_count >= self.edge_sample_size:
                     break
-                writer.writerow(row + ['PrimeKG'])
+                # PrimeKG format: relation,display_relation,x_index,y_index
+                if len(row) >= 4:
+                    x_index = row[2]  # x_index
+                    y_index = row[3]  # y_index
+                    # Only include edges where both nodes are in our sample
+                    if x_index in sampled_node_indices and y_index in sampled_node_indices:
+                        writer.writerow(row + ['PrimeKG'])
+                        edge_count += 1
         
-        logger.info(f"PrimeKG: {self.node_sample_size} nodes, {self.edge_sample_size} edges")
+        logger.info(f"PrimeKG: {len(sampled_node_indices)} nodes, {edge_count} edges")
     
     def sample_and_save_ikraph(self):
         """Sample and save iKraph data"""
         logger.info("Processing iKraph...")
         
-        # Nodes
+        # First, sample nodes and collect their IDs
         nodes_file = self.data_dir / "iKraph_data" / "nodes_gene.csv.gz"
         output_nodes = self.output_dir / "ikraph_nodes.csv"
         
+        sampled_node_ids = set()
         with gzip.open(nodes_file, 'rt') as infile, open(output_nodes, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -123,16 +136,20 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
+            # Write sample and collect node IDs
             for i, row in enumerate(reader):
                 if i >= self.node_sample_size:
                     break
                 writer.writerow(row + ['iKraph'])
+                # iKraph format: biokdeid:ID,type,subtype,external_id,species,official_name,common_name,:LABEL
+                if len(row) >= 1:
+                    sampled_node_ids.add(row[0])  # biokdeid:ID
         
-        # Edges
+        # Now sample edges that only reference the sampled nodes
         edges_file = self.data_dir / "iKraph_data" / "relationships_db.csv.gz"
         output_edges = self.output_dir / "ikraph_edges.csv"
         
+        edge_count = 0
         with gzip.open(edges_file, 'rt') as infile, open(output_edges, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -141,22 +158,30 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
-            for i, row in enumerate(reader):
-                if i >= self.edge_sample_size:
+            # Write edges that reference sampled nodes
+            for row in reader:
+                if edge_count >= self.edge_sample_size:
                     break
-                writer.writerow(row + ['iKraph'])
+                # iKraph format: :START_ID,:END_ID,relation_id,correlation_id,direction,source,relationship_type,probability,score,:TYPE
+                if len(row) >= 2:
+                    start_id = row[0]  # :START_ID
+                    end_id = row[1]    # :END_ID
+                    # Only include edges where both nodes are in our sample
+                    if start_id in sampled_node_ids and end_id in sampled_node_ids:
+                        writer.writerow(row + ['iKraph'])
+                        edge_count += 1
         
-        logger.info(f"iKraph: {self.node_sample_size} nodes, {self.edge_sample_size} edges")
+        logger.info(f"iKraph: {len(sampled_node_ids)} nodes, {edge_count} edges")
     
     def sample_and_save_semmeddb(self):
         """Sample and save SemMedDB data"""
         logger.info("Processing SemMedDB...")
         
-        # Nodes
+        # First, sample nodes and collect their entity IDs
         nodes_file = self.data_dir / "SemMedDB_Data" / "entity.gz"
         output_nodes = self.output_dir / "semmeddb_nodes.csv"
         
+        sampled_entity_ids = set()
         with gzip.open(nodes_file, 'rt') as infile, open(output_nodes, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -165,16 +190,20 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
+            # Write sample and collect entity IDs
             for i, row in enumerate(reader):
                 if i >= self.node_sample_size:
                     break
                 writer.writerow(row + ['SemMedDB'])
+                # SemMedDB format: entity_id,cui,numeric_id,semantic_type,name,aliases,source,frequency,score,rank
+                if len(row) >= 1:
+                    sampled_entity_ids.add(row[0])  # entity_id
         
-        # Edges
+        # Now sample edges that only reference the sampled nodes
         edges_file = self.data_dir / "SemMedDB_Data" / "connections.csv.gz"
         output_edges = self.output_dir / "semmeddb_edges.csv"
         
+        edge_count = 0
         with gzip.open(edges_file, 'rt') as infile, open(output_edges, 'w', newline='') as outfile:
             reader = csv.reader(infile)
             writer = csv.writer(outfile)
@@ -183,13 +212,20 @@ class SimpleUnmergedCreator:
             header = next(reader)
             writer.writerow(header + ['source'])
             
-            # Write sample
-            for i, row in enumerate(reader):
-                if i >= self.edge_sample_size:
+            # Write edges that reference sampled nodes
+            for row in reader:
+                if edge_count >= self.edge_sample_size:
                     break
-                writer.writerow(row + ['SemMedDB'])
+                # SemMedDB format: :START_ID,:END_ID,:TYPE,frequency
+                if len(row) >= 2:
+                    start_id = row[0]  # :START_ID
+                    end_id = row[1]    # :END_ID
+                    # Only include edges where both nodes are in our sample
+                    if start_id in sampled_entity_ids and end_id in sampled_entity_ids:
+                        writer.writerow(row + ['SemMedDB'])
+                        edge_count += 1
         
-        logger.info(f"SemMedDB: {self.node_sample_size} nodes, {self.edge_sample_size} edges")
+        logger.info(f"SemMedDB: {len(sampled_entity_ids)} nodes, {edge_count} edges")
     
     def create_summary(self):
         """Create summary file"""
@@ -244,7 +280,11 @@ class SimpleUnmergedCreator:
             f.write(f"- **Total**: {summary['total_sample_size']}\n\n")
             f.write(f"## Usage\n")
             f.write(f"Each file contains a 'source' column indicating the original dataset. ")
-            f.write(f"This allows you to see overlapping entities and unique entities from each source.\n")
+            f.write(f"This allows you to see overlapping entities and unique entities from each source.\n\n")
+            f.write(f"## Data Integrity\n")
+            f.write(f"**IMPORTANT**: All edges reference nodes that exist in the corresponding node files. ")
+            f.write(f"This ensures data integrity and prevents orphaned edges. ")
+            f.write(f"Edge counts may be lower than the target due to this constraint.\n")
         
         with open(self.output_dir / "summary.json", 'w') as f:
             json.dump(summary, f, indent=2)
@@ -272,6 +312,9 @@ def main():
     logger.info("  - ikraph_nodes.csv, ikraph_edges.csv")
     logger.info("  - semmeddb_nodes.csv, semmeddb_edges.csv")
     logger.info("  - README.md, summary.json")
+    logger.info("")
+    logger.info("IMPORTANT: All edges now reference nodes that exist in the corresponding node files.")
+    logger.info("Edge counts may be lower than the target due to this constraint.")
 
 if __name__ == "__main__":
     main()
